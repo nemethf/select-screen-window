@@ -1,0 +1,4 @@
+#!/bin/bash
+
+emacsclient -nw --eval "(ssw \"$STY\")"
+

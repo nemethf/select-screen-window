@@ -1,0 +1,30 @@
+#!/bin/bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+src="${SCRIPT_DIR}/ssw.el"
+conf=$(mktemp)
+cmd=$(mktemp)
+cat >$cmd <<-EOF
+	#!/bin/bash
+	echo -e This is window \$WINDOW named "\\033[0;32m\$*\\033[0m"
+	echo
+	echo c-a \": traditional windowlist
+	echo C-a b: ssw
+	echo "RET  : kill this window"
+	echo c-a \\\\: finish this test/demo
+	read var
+EOF
+chmod u+x $cmd
+
+for t in aaaa aabb bbcc ddaa dcba; do
+    echo screen -t "\"$t\"" $cmd $t >> $conf
+done
+cat >>$conf <<-EOF
+	select 0
+	startup_message off
+	bind b screen "$SCRIPT_DIR/ssw"
+	bind ^b screen "$SCRIPT_DIR/ssw-emacsclient"
+EOF
+cat $conf
+screen -c $conf
+rm $conf $cmd

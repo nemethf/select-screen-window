@@ -1,0 +1,6 @@
+#!/bin/bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+src="$SCRIPT_DIR/ssw.el"
+
+emacs -Q -nw -l $src --eval "(ssw)"
