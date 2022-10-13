@@ -26,6 +26,13 @@ loaded ssw.el, then this might work as well:
 
   ![demo](https://raw.githubusercontent.com/wiki/nemethf/select-screen-window/demo.gif)
 
+# Emacs
+
+Since the incremental window selection method is implemented in Emacs,
+`ssw` has a very simple screen library.  Based on it `ssw` provides a
+new command for Emacs users: `ssw-insert-window` inserts the content
+of a screen window into an Emacs buffer.
+
 # License
 
 [GPLv3+][gpl]

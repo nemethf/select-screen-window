@@ -60,12 +60,14 @@ If STY is non-nil, assume `ssw' called from emacsclient."
         (delete-frame)
       (kill-emacs))))
 
-(defun ssw-get-winlist (scmd)
-  "Call `screen' to get the list of windows."
+(defun ssw-get-winlist (scmd &optional keep-current)
+  "Call `screen' to get the list of windows.
+If KEEP-CURRENT is non-nil, don't exclude current window from the list."
   (let* ((wtitle "%n. %t")           ; (info "(screen)String Escapes")
          (winlist-cmd
           (format "%s -Q windows '%s%s'" scmd wtitle ssw-separator)))
-    (shell-command (format "%s -X title SSW" scmd))
+    (unless keep-current
+      (shell-command (format "%s -X title SSW" scmd)))
     (shell-command (format "%s -X msgwait 0" scmd))
     (prog1
         (seq-remove
@@ -77,8 +79,7 @@ If STY is non-nil, assume `ssw' called from emacsclient."
 (defun ssw-switch-to-window (scmd window-number)
   "Call `screen' to switch to WINDOW-NUMBER.
 WINDOW-NUMBER can be an empty string."
-  (if (string-equal "" window-number)
-      (shell-command (format "%s -X other" scmd))
+  (unless (string-equal "" window-number)
     (shell-command (format "%s -X select %s" scmd window-number))))
 
 
@@ -93,5 +94,30 @@ WINDOW-NUMBER can be an empty string."
         (max-mini-window-height 0.99))
     (ido-completing-read prompt choices predicate require-match initial-input
                          hist def inherit-input-method)))
+
+(defun ssw-select-sty ()
+  (let (sty-list)
+    (with-temp-buffer
+      (shell-command "screen -ls" t)
+      (goto-char (point-min))
+      (while (re-search-forward "^\t\\([^\t]+\\).*$" nil t)
+        (setq sty-list (cons (match-string 1) sty-list))))
+    (if (= 1 (length sty-list))
+        (car sty-list)
+      (completing-read "Select screen: " sty-list nil t))))
+
+(defun ssw-insert-window ()
+  "Insert the content of a screen window at point."
+  (interactive)
+  (let* ((sty (ssw-select-sty))
+         (scmd (if sty (format "screen -S %s" sty) "screen"))
+         (window (completing-read "Window to insert: "
+                                  (ssw-get-winlist scmd t) nil t))
+         (winnum (car (split-string window "\\.")))
+         (tempfile (make-temp-file "ssw-")))
+    (ssw-switch-to-window scmd winnum)
+    (shell-command (format "%s -X hardcopy %s" scmd tempfile))
+    (insert-file-contents tempfile)
+    (delete-file tempfile nil)))
 
 ;;; ssw.el ends here
