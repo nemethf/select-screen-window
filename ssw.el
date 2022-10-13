@@ -34,45 +34,64 @@ resets msgwait to `ssw-msgwait' afterwards.")
 (defvar ssw-separator "#G!3#"
   "A string that is never part of a window title.")
 
+(defvar ssw-completing-read-function 'ssw-completing-read
+  "A `completing-read' function to use.")
+
 (defun ssw (&optional sty)
   "Select a screen window with incremental search.
 If STY is non-nil, it should be the screen's sessionname.
 If STY is non-nil, assume `ssw' called from emacsclient."
-  (save-window-excursion
-    (delete-other-windows)
-    (switch-to-buffer (get-buffer-create " *ssw*"))
-    (let* ((ido-max-prospects 0)          ; No limit.
-           (ido-decorations '("\n" "" "\n" ",..." "[" "]" " [No match]"
-                              " [Matched]" " [Not readable]" " [Too big]"
-                              " [Confirm]"))
-           (ido-enable-flex-matching t)
-           (max-mini-window-height 0.99)
-           (scmd (if sty (format "screen -S %s" sty) "screen"))
-           (wtitle "%n. %t")         ; (info "(screen)String Escapes")
-           (winlist-cmd (format "%s -Q windows '%s%s'"
-                                scmd wtitle ssw-separator))
-           (mode-line-format nil)
-           (menu-bar-mode menu-bar-mode)
-           winlist selection)
-      (menu-bar-mode -1)
-      (shell-command (format "%s -X title SSW" scmd))
-      (shell-command (format "%s -X msgwait 0" scmd))
-      (setq winlist
-            (split-string (shell-command-to-string winlist-cmd) ssw-separator))
-      (setq selection
-            (ido-completing-read
-	     "Switch to window: "
-	     (seq-remove (lambda (w) (string-match "^[[:digit:]]+\\. SSW$" w))
-                         winlist)
-             nil t))
-      (setq selection (car (split-string selection "\\.")))
-      (menu-bar-mode menu-bar-mode)
-      (shell-command (format "%s -X msgwait %s" scmd ssw-msgwait))
-      (if (string-equal "" selection)
-          (shell-command (format "%s -X other" scmd))
-        (shell-command (format "%s -X select %s" scmd selection)))
-      (if sty
-          (delete-frame)
-        (kill-emacs)))))
+  (unwind-protect
+      (save-window-excursion
+        (delete-other-windows)
+        (switch-to-buffer (get-buffer-create " *ssw*"))
+        (let* ((scmd (if sty (format "screen -S %s" sty) "screen"))
+               (mode-line-format nil)
+               (menu-bar-mode menu-bar-mode)
+               (dummy (menu-bar-mode -1))
+               (default-directory "/")
+               (winlist (ssw-get-winlist scmd))
+               (selection (apply ssw-completing-read-function
+                                 "Switch to window: " winlist nil t nil))
+               (winnum (car (split-string selection "\\."))))
+          (ssw-switch-to-window scmd winnum)
+          (menu-bar-mode menu-bar-mode)))
+    (if sty
+        (delete-frame)
+      (kill-emacs))))
+
+(defun ssw-get-winlist (scmd)
+  "Call `screen' to get the list of windows."
+  (let* ((wtitle "%n. %t")           ; (info "(screen)String Escapes")
+         (winlist-cmd
+          (format "%s -Q windows '%s%s'" scmd wtitle ssw-separator)))
+    (shell-command (format "%s -X title SSW" scmd))
+    (shell-command (format "%s -X msgwait 0" scmd))
+    (prog1
+        (seq-remove
+         (lambda (w) (string-match "^[[:digit:]]+\\. SSW$" w))
+         (split-string
+          (shell-command-to-string winlist-cmd) ssw-separator))
+      (shell-command (format "%s -X msgwait %s" scmd ssw-msgwait)))))
+
+(defun ssw-switch-to-window (scmd window-number)
+  "Call `screen' to switch to WINDOW-NUMBER.
+WINDOW-NUMBER can be an empty string."
+  (if (string-equal "" window-number)
+      (shell-command (format "%s -X other" scmd))
+    (shell-command (format "%s -X select %s" scmd window-number))))
+
+
+(defun ssw-completing-read (prompt choices &optional predicate require-match
+                            initial-input hist def inherit-input-method)
+  "A vertical `completing-read' with flex matching."
+  (let ((ido-max-prospects 0)          ; No limit.
+        (ido-decorations '("\n" "" "\n" ",..." "[" "]" " [No match]"
+                           " [Matched]" " [Not readable]" " [Too big]"
+                           " [Confirm]"))
+        (ido-enable-flex-matching t)
+        (max-mini-window-height 0.99))
+    (ido-completing-read prompt choices predicate require-match initial-input
+                         hist def inherit-input-method)))
 
 ;;; ssw.el ends here
